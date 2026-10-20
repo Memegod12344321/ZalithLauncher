@@ -64,7 +64,7 @@
                         android:layout_alignParentEnd="true"
                         android:layout_centerVertical="true"
                         android:layout_toEndOf="@id/meme_ai_icon"
-                        android:text="Meme AI / Appearance"
+                        android:text="Meme AI Settings"
                         android:textSize="@dimen/_12sdp"
                         android:textColor="@color/primary_text"/>
                 </com.movtery.zalithlauncher.ui.layout.AnimRelativeLayout>
