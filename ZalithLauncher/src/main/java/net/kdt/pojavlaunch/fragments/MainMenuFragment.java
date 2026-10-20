@@ -3,10 +3,18 @@ package net.kdt.pojavlaunch.fragments;
 import static com.movtery.zalithlauncher.event.single.RefreshVersionsEvent.MODE.END;
 
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Toast;
+import android.widget.EditText;
+import android.text.InputType;
+import androidx.appcompat.app.AlertDialog;
+import android.content.SharedPreferences;
+import java.net.HttpURLConnection;
+import java.net.URL;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -63,6 +71,7 @@ public class MainMenuFragment extends FragmentWithAnim {
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         binding.aboutText.setText(InfoCenter.replaceName(requireActivity(), R.string.about_tab));
+        binding.memeAiSettingsButton.setOnClickListener(v -> showMemeAiSettings());
         binding.aboutButton.setOnClickListener(v -> ZHTools.swapFragmentWithAnim(this, AboutFragment.class, AboutFragment.TAG, null));
         binding.customControlButton.setOnClickListener(v -> ZHTools.swapFragmentWithAnim(this, ControlButtonFragment.class, ControlButtonFragment.TAG, null));
         binding.openMainDirButton.setOnClickListener(v -> {
@@ -101,6 +110,64 @@ public class MainMenuFragment extends FragmentWithAnim {
         binding.versionInfo.setSelected(true);
 
         refreshCurrentVersion();
+    }
+
+
+    private void showMemeAiSettings() {
+        SharedPreferences prefs = requireContext().getSharedPreferences("meme_launcher", android.content.Context.MODE_PRIVATE);
+        EditText urlInput = new EditText(requireContext());
+        urlInput.setSingleLine(true);
+        urlInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
+        urlInput.setHint("http://127.0.0.1:8080/v1");
+        urlInput.setText(prefs.getString("qwen_base_url", "http://127.0.0.1:8080/v1"));
+        int pad = (int) (20 * getResources().getDisplayMetrics().density);
+        android.widget.FrameLayout holder = new android.widget.FrameLayout(requireContext());
+        holder.setPadding(pad, 0, pad, 0);
+        holder.addView(urlInput);
+        new AlertDialog.Builder(requireContext())
+            .setTitle("Meme AI & Appearance")
+            .setMessage("Local Qwen server URL (llama.cpp OpenAI-compatible API). On Android, 127.0.0.1 means this phone. For Termux on the same phone, try http://127.0.0.1:8080/v1.")
+            .setView(holder)
+            .setNegativeButton("Cancel", null)
+            .setNeutralButton("Test connection", (dialog, which) -> {
+                String base = urlInput.getText().toString().trim().replaceAll("/+$", "");
+                if (base.isEmpty()) {
+                    Toast.makeText(requireContext(), "Enter a server URL first", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                prefs.edit().putString("qwen_base_url", base).apply();
+                Toast.makeText(requireContext(), "Testing Qwen server…", Toast.LENGTH_SHORT).show();
+                new Thread(() -> {
+                    String result;
+                    HttpURLConnection connection = null;
+                    try {
+                        URL url = new URL(base + "/models");
+                        connection = (HttpURLConnection) url.openConnection();
+                        connection.setRequestMethod("GET");
+                        connection.setConnectTimeout(4000);
+                        connection.setReadTimeout(4000);
+                        int code = connection.getResponseCode();
+                        result = (code >= 200 && code < 300)
+                            ? "Qwen server reachable (HTTP " + code + ")"
+                            : "Server replied HTTP " + code;
+                    } catch (Exception e) {
+                        result = "Could not connect: " + e.getMessage();
+                    } finally {
+                        if (connection != null) connection.disconnect();
+                    }
+                    final String message = result;
+                    new Handler(Looper.getMainLooper()).post(() ->
+                        Toast.makeText(requireContext(), message, Toast.LENGTH_LONG).show());
+                }).start();
+            })
+            .setPositiveButton("Save", (dialog, which) -> {
+                String base = urlInput.getText().toString().trim().replaceAll("/+$", "");
+                if (!base.isEmpty()) {
+                    prefs.edit().putString("qwen_base_url", base).apply();
+                    Toast.makeText(requireContext(), "Qwen server URL saved", Toast.LENGTH_SHORT).show();
+                }
+            })
+            .show();
     }
 
     private void refreshCurrentVersion() {
